@@ -18,12 +18,7 @@ class Employee(Base):
 
     last_name = Column(String(100), nullable=False)
 
-    email = Column(
-        String(150),
-        unique=True,
-        nullable=False,
-        index=True
-    )
+    email = Column(String(150),unique=True,nullable=False,index=True)
 
     phone = Column(String(20), nullable=True)
 
@@ -37,22 +32,10 @@ class Employee(Base):
 
     status = Column(String(20), default="active")
 
-    created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now()
-    )
+    created_at = Column(DateTime(timezone=True),server_default=func.now())
 
-    updated_at = Column(
-        DateTime(timezone=True),
-        onupdate=func.now()
-    )
-    department_id = Column(
-        Integer,
-        ForeignKey("departments.id"),
-        nullable=True
-    )
+    updated_at = Column(DateTime(timezone=True),onupdate=func.now())
 
-    department_record = relationship(
-        "Department",
-        back_populates="employees"
-    )
+    department_id = Column(Integer,ForeignKey("departments.id"),nullable=True)
+
+    department_record = relationship("Department",back_populates="employees")

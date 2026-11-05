@@ -13,18 +13,13 @@ class User(Base):
 
     name = Column(String(100), nullable=False)
 
-    email = Column(
-        String(150),
-        unique=True,
-        nullable=False,
-        index=True
-    )
+    email = Column(String(150),unique=True,nullable=False,index=True)
 
     hashed_password = Column(String(255), nullable=False)
 
     is_active = Column(Boolean, default=True, nullable=False)
 
-    created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now()
-    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    role = Column(String(20), default="employee", nullable=False)
+

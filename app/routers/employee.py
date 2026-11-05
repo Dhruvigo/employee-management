@@ -1,7 +1,8 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-
+from fastapi import Depends
+from app.core.dependencies import require_admin
 from app.database import get_db
 
 from app.schemas.employee import (
@@ -15,7 +16,8 @@ from app.services import employee as employee_service
 
 router = APIRouter(
     prefix="/api/employees",
-    tags=["Employees"]
+    tags=["Employees"],
+    dependencies=[Depends(require_admin)]
 )
 
 
