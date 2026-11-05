@@ -34,46 +34,73 @@ def create_employee(db: Session, employee_data: EmployeeCreate):
 def get_all_employees(
     db: Session,
     search: str = None,
-    department: str = None,
+    department_id: int = None,
     status: str = None,
+    sort_by: str = "id",
+    order: str = "asc",
     page: int = 1,
     limit: int = 10
 ):
+    query = db.query(Employee).options(
+        joinedload(Employee.department_record)
+    )
 
-    query = db.query(Employee)
-
+    # Search
     if search:
-        search_term = f"%{search}%"
-
         query = query.filter(
             or_(
-                Employee.first_name.ilike(search_term),
-                Employee.last_name.ilike(search_term),
-                Employee.email.ilike(search_term),
-                Employee.employee_code.ilike(search_term)
+                Employee.first_name.ilike(f"%{search}%"),
+                Employee.last_name.ilike(f"%{search}%"),
+                Employee.email.ilike(f"%{search}%"),
+                Employee.employee_code.ilike(f"%{search}%")
             )
         )
 
-    if department:
+    # Department filter
+    if department_id is not None:
         query = query.filter(
-            Employee.department.ilike(department)
+            Employee.department_id == department_id
         )
 
+    # Status filter
     if status:
-        query = query.filter(
-            Employee.status == status
-        )
+        query = query.filter(Employee.status == status)
 
-    offset = (page - 1) * limit
+    # Sorting
+    sort_columns = {
+        "id": Employee.id,
+        "name": Employee.first_name,
+        "salary": Employee.salary,
+        "joining_date": Employee.joining_date
+    }
 
-    return (
-        query.order_by(Employee.id.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    if sort_by not in sort_columns:
+        raise ValueError("Invalid sort field")
 
+    if order not in ["asc", "desc"]:
+        raise ValueError("Invalid sort order")
 
+    column = sort_columns[sort_by]
+
+    if order == "desc":
+        query = query.order_by(column.desc())
+    else:
+        query = query.order_by(column.asc())
+
+    # Pagination
+    total = query.count()
+
+    employees = query.offset(
+        (page - 1) * limit
+    ).limit(limit).all()
+
+    return {
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "employees": employees
+    }
+    
 # 3. GET EMPLOYEE BY ID
 def get_employee_by_id(db, employee_id):
 

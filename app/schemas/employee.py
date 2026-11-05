@@ -6,7 +6,8 @@ from app.schemas.department import EmployeeDepartmentResponse
 from pydantic import BaseModel, ConfigDict, Field ,EmailStr
 #schema for employee data validation and serialization using Pydantic
 #schemas are used to define the structure and validation rules for the data that is sent and received by the API endpoints.
-
+from typing import List
+from pydantic import BaseModel
 class EmployeeCreate(BaseModel):
 
     employee_code: str = Field(min_length=2, max_length=20)
@@ -77,3 +78,9 @@ class EmployeeResponse(BaseModel):
     updated_at: Optional[datetime] = None
     department_id: Optional[int] = None
     department_record: Optional[EmployeeDepartmentResponse] = None
+
+class EmployeeListResponse(BaseModel):
+    total: int
+    page: int
+    limit: int
+    employees: List[EmployeeResponse]

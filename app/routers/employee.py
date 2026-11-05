@@ -1,14 +1,15 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from fastapi import Depends
+
 from app.core.dependencies import require_admin
 from app.database import get_db
 
 from app.schemas.employee import (
     EmployeeCreate,
     EmployeeUpdate,
-    EmployeeResponse
+    EmployeeResponse,
+    EmployeeListResponse
 )
 
 from app.services import employee as employee_service
@@ -29,29 +30,35 @@ def create_employee(
 ):
     try:
         return employee_service.create_employee(db, employee)
-
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error))
 
 
 # 2. GET ALL EMPLOYEES
-@router.get("/", response_model=list[EmployeeResponse])
+@router.get("/", response_model=EmployeeListResponse)
 def get_employees(
-    search: str | None = None,
-    department: str | None = None,
-    status: str | None = None,
+    search: str = None,
+    department_id: int = None,
+    status: str = None,
+    sort_by: str = "id",
+    order: str = "asc",
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    return employee_service.get_all_employees(
-        db=db,
-        search=search,
-        department=department,
-        status=status,
-        page=page,
-        limit=limit
-    )
+    try:
+        return employee_service.get_all_employees(
+            db=db,
+            search=search,
+            department_id=department_id,
+            status=status,
+            sort_by=sort_by,
+            order=order,
+            page=page,
+            limit=limit
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
 
 
 # 3. GET EMPLOYEE BY ID
@@ -63,10 +70,7 @@ def get_employee(
     employee = employee_service.get_employee_by_id(db, employee_id)
 
     if not employee:
-        raise HTTPException(
-            status_code=404,
-            detail="Employee not found"
-        )
+        raise HTTPException(status_code=404, detail="Employee not found")
 
     return employee
 
@@ -84,10 +88,7 @@ def update_employee(
         )
 
         if not updated_employee:
-            raise HTTPException(
-                status_code=404,
-                detail="Employee not found"
-            )
+            raise HTTPException(status_code=404, detail="Employee not found")
 
         return updated_employee
 
@@ -104,10 +105,7 @@ def delete_employee(
     deleted = employee_service.delete_employee(db, employee_id)
 
     if not deleted:
-        raise HTTPException(
-            status_code=404,
-            detail="Employee not found"
-        )
+        raise HTTPException(status_code=404, detail="Employee not found")
 
     return {
         "success": True,
