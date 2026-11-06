@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.core.dependencies import require_admin
-
+from app.core.dependencies import require_employee
 from app.schemas.leave import (
     LeaveCreate,
     LeaveStatusUpdate,
@@ -72,3 +72,29 @@ def update_leave_status(
 
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
+
+@router.post("/my-leaves", response_model=LeaveResponse)
+def apply_my_leave(
+    data: LeaveCreate,
+    current_user = Depends(require_employee),
+    db: Session = Depends(get_db)
+):
+    data = data.model_copy(
+        update={"employee_id": current_user.employee_id}
+    )
+
+    try:
+        return leave_service.create_leave(db, data)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    
+
+@router.get("/my-leaves", response_model=list[LeaveResponse])
+def my_leaves(
+    current_user = Depends(require_employee),
+    db: Session = Depends(get_db)
+):
+    return leave_service.get_leaves(
+        db,
+        employee_id=current_user.employee_id
+    )

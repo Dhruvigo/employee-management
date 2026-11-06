@@ -39,3 +39,5 @@ class Employee(Base):
     department_id = Column(Integer,ForeignKey("departments.id"),nullable=True)
 
     department_record = relationship("Department",back_populates="employees")
+    
+    user = relationship("User",back_populates="employee", uselist=False)

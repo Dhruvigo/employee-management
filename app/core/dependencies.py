@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.core.security import verify_access_token
+from fastapi import Depends, HTTPException
 
 bearer_scheme = HTTPBearer()
 
@@ -33,6 +34,35 @@ def require_admin(current_user: User = Depends(get_current_user)):
         raise HTTPException(
             status_code=403,
             detail="Admin permission required"
+        )
+
+    return current_user
+
+def require_employee_or_admin(
+    current_user = Depends(get_current_user)
+):
+    if current_user.role not in ["employee", "admin"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied"
+        )
+
+    return current_user
+
+
+def require_employee(
+    current_user = Depends(get_current_user)
+):
+    if current_user.role != "employee":
+        raise HTTPException(
+            status_code=403,
+            detail="Employee access required"
+        )
+
+    if not current_user.employee_id:
+        raise HTTPException(
+            status_code=403,
+            detail="No employee record linked to this account"
         )
 
     return current_user

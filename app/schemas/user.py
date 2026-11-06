@@ -16,6 +16,7 @@ class UserResponse(UserBase):
     is_active: bool
     created_at: datetime
     role: str
+    employee_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

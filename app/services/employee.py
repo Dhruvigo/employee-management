@@ -1,25 +1,45 @@
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException
 
 from app.models.employee import Employee
-from app.schemas.employee import EmployeeCreate, EmployeeUpdate
-from fastapi import HTTPException
 from app.models.department import Department
-from sqlalchemy.orm import joinedload
+from app.models.user import User
 
-# 1. CREATE EMPLOYEE
-# 1. CREATE EMPLOYEE
+from app.schemas.employee import EmployeeCreate, EmployeeUpdate
+
+from app.core.security import hash_password
+
+
+# 1. CREATE EMPLOYEE + USER
 def create_employee(db: Session, employee_data: EmployeeCreate):
 
-    # Validate department before creating employee
     validate_department(db, employee_data.department_id)
 
-    new_employee = Employee(**employee_data.model_dump())
+    data = employee_data.model_dump()
+    password = data.pop("password")
 
     try:
+        # Create employee
+        new_employee = Employee(**data)
+
         db.add(new_employee)
+        db.flush()
+
+        # Automatically create login user
+        new_user = User(
+            name=f"{new_employee.first_name} {new_employee.last_name}",
+            email=new_employee.email,
+            hashed_password=hash_password(password),
+            employee_id=new_employee.id,
+            role="employee",
+            is_active=True
+        )
+
+        db.add(new_user)
+
         db.commit()
         db.refresh(new_employee)
 
@@ -27,10 +47,12 @@ def create_employee(db: Session, employee_data: EmployeeCreate):
 
     except IntegrityError:
         db.rollback()
-        raise ValueError("Employee code or email already exists")
+        raise ValueError(
+            "Employee code or email already exists"
+        )
 
 
-# 2. GET ALL EMPLOYEES WITH SEARCH AND PAGINATION
+# 2. GET ALL EMPLOYEES WITH SEARCH, FILTER, SORT AND PAGINATION
 def get_all_employees(
     db: Session,
     search: str = None,
@@ -41,6 +63,7 @@ def get_all_employees(
     page: int = 1,
     limit: int = 10
 ):
+
     query = db.query(Employee).options(
         joinedload(Employee.department_record)
     )
@@ -64,7 +87,9 @@ def get_all_employees(
 
     # Status filter
     if status:
-        query = query.filter(Employee.status == status)
+        query = query.filter(
+            Employee.status == status
+        )
 
     # Sorting
     sort_columns = {
@@ -100,21 +125,20 @@ def get_all_employees(
         "limit": limit,
         "employees": employees
     }
-    
-# 3. GET EMPLOYEE BY ID
-def get_employee_by_id(db, employee_id):
 
-    employee = (
+
+# 3. GET EMPLOYEE BY ID
+def get_employee_by_id(db: Session, employee_id: int):
+
+    return (
         db.query(Employee)
         .options(joinedload(Employee.department_record))
         .filter(Employee.id == employee_id)
         .first()
     )
 
-    return employee
 
-
-# 4. UPDATE EMPLOYEE
+# 4. UPDATE EMPLOYEE + SYNCHRONIZE USER EMAIL
 def update_employee(
     db: Session,
     employee_id: int,
@@ -126,16 +150,31 @@ def update_employee(
     if not employee:
         return None
 
-    update_data = employee_data.model_dump(exclude_unset=True)
+    update_data = employee_data.model_dump(
+        exclude_unset=True
+    )
 
-    # Validate department only when department_id is supplied
+    # Validate department
     if "department_id" in update_data:
-        validate_department(db, update_data["department_id"])
-
-    for key, value in update_data.items():
-        setattr(employee, key, value)
+        validate_department(
+            db,
+            update_data["department_id"]
+        )
 
     try:
+        # Update employee fields
+        for key, value in update_data.items():
+            setattr(employee, key, value)
+
+        # Update linked login account email
+        if "email" in update_data:
+            user = db.query(User).filter(
+                User.employee_id == employee_id
+            ).first()
+
+            if user:
+                user.email = update_data["email"]
+
         db.commit()
         db.refresh(employee)
 
@@ -143,10 +182,12 @@ def update_employee(
 
     except IntegrityError:
         db.rollback()
-        raise ValueError("Employee code or email already exists")
+        raise ValueError(
+            "Employee code or email already exists"
+        )
 
 
-# 5. DELETE EMPLOYEE
+# 5. DELETE EMPLOYEE + LINKED USER
 def delete_employee(db: Session, employee_id: int):
 
     employee = get_employee_by_id(db, employee_id)
@@ -154,13 +195,33 @@ def delete_employee(db: Session, employee_id: int):
     if not employee:
         return False
 
-    db.delete(employee)
-    db.commit()
+    try:
+        # Find linked user
+        user = db.query(User).filter(
+            User.employee_id == employee_id
+        ).first()
 
-    return True
+        # Delete user first
+        if user:
+            db.delete(user)
+
+        # Delete employee
+        db.delete(employee)
+
+        db.commit()
+
+        return True
+
+    except IntegrityError:
+        db.rollback()
+        raise ValueError(
+            "Unable to delete employee"
+        )
 
 
-def validate_department(db, department_id):
+# 6. VALIDATE DEPARTMENT
+def validate_department(db: Session, department_id: int):
+
     if department_id is None:
         return
 
